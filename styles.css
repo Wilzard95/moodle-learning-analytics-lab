@@ -1,0 +1,25 @@
+.report-indicadores-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.report-indicadores-card {
+    padding: 1rem;
+}
+
+.report-indicadores-card-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.report-indicadores-card-label {
+    color: var(--secondary, #6c757d);
+}
+
+.report-indicadores-activities td,
+.report-indicadores-students td {
+    vertical-align: middle;
+}
+
