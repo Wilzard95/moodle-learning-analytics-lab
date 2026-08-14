@@ -11,6 +11,9 @@ Este repositorio contiene únicamente el plugin institucional en desarrollo. No 
 - Aprobación por actividad y del curso.
 - Finalización oficial configurada en Moodle.
 - Eventos registrados por actividad, estudiante y día.
+- Panel visual interactivo para alternar entre aprobación, evolución diaria e interacciones por actividad.
+- Vistas visuales de entregas, aprobación y cobertura por actividad, avance global y consulta de recursos.
+- Acceso directo en la navegación secundaria del curso para usuarios con permiso de consulta.
 - Detalle nominal protegido por una capacidad independiente.
 
 Los cursos en progreso abren por defecto en los últimos 30 días. Los cursos finalizados abren en
@@ -61,7 +64,7 @@ Antes de desplegarlo en producción deben revisarse los roles, capacidades, pol�
 
 ## Estado y compatibilidad
 
-La versión actual es `0.1.1`, con madurez alpha, desarrollada y validada en Moodle 4.5.3+ (build 20250404). No habilita ni entrena modelos predictivos.
+La versión actual es `0.3.11`, con madurez alpha, desarrollada y validada en Moodle 4.5.3+ (build 20250404). No habilita ni entrena modelos predictivos.
 
 ## Licencia
 

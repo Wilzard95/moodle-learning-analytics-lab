@@ -18,8 +18,183 @@
     color: var(--secondary, #6c757d);
 }
 
+.report-indicadores-dashboard {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border: 1px solid #dfe3e8;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 0.25rem 1rem rgba(15, 36, 64, 0.08);
+}
+
+.report-indicadores-dashboard-intro,
+.report-indicadores-chart-description {
+    color: var(--secondary, #5f6b76);
+}
+
+.report-indicadores-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1.25rem 0;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e8eb;
+}
+
+.report-indicadores-tab {
+    padding: 0.65rem 1rem;
+    border: 1px solid #b8c2cc;
+    border-radius: 2rem;
+    background: #fff;
+    color: #263746;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.report-indicadores-tab:hover,
+.report-indicadores-tab:focus-visible {
+    border-color: var(--primary, #0f6cbf);
+    color: var(--primary, #0f6cbf);
+}
+
+.report-indicadores-tab.is-active {
+    border-color: var(--primary, #0f6cbf);
+    background: var(--primary, #0f6cbf);
+    color: #fff;
+}
+
+.report-indicadores-chart-panel[hidden] {
+    display: none;
+}
+
+.report-indicadores-chart-title {
+    margin-bottom: 0.25rem;
+    font-size: 1.25rem;
+}
+
+.report-indicadores-chart-panel .chart-area {
+    min-height: 22rem;
+}
+
+.report-indicadores-chart-scroll {
+    max-height: 36rem;
+    padding-right: 0.5rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.report-indicadores-chart-scroll:focus-visible {
+    outline: 2px solid var(--primary, #0f6cbf);
+    outline-offset: 0.2rem;
+}
+
+.report-indicadores-chart-scroll .chart-area {
+    min-height: max(32rem, calc(var(--report-activity-count) * 2.5rem));
+}
+
+/* Moodle fixes chart-image to 48vh on desktop. Override that actual canvas
+   container so Chart.js allocates a readable row to every activity. */
+.report-indicadores-chart-scroll .chart-image {
+    width: 100% !important;
+    height: max(30rem, calc(var(--report-activity-count) * 2.5rem)) !important;
+    margin: 0 !important;
+}
+
+.report-indicadores-type-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.report-indicadores-type-select {
+    width: auto;
+    min-width: 15rem;
+}
+
+.report-indicadores-type-panel[hidden] {
+    display: none;
+}
+
+.report-indicadores-type-panel .report-indicadores-table-section {
+    margin-top: 1rem;
+}
+
+.report-indicadores-missing-evidence td:last-child {
+    min-width: 16rem;
+}
+
+.report-indicadores-attention td:nth-last-child(-n + 2) {
+    min-width: 18rem;
+}
+
+.report-indicadores-table-section {
+    margin-bottom: 1.5rem;
+    border: 1px solid #dfe3e8;
+    border-radius: 0.75rem;
+    background: #fff;
+    overflow: hidden;
+}
+
+.report-indicadores-table-section[hidden] {
+    display: none;
+}
+
+.report-indicadores-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+}
+
+.report-indicadores-table-title {
+    margin: 0 0 0.2rem;
+    font-size: 1.2rem;
+}
+
+.report-indicadores-table-description {
+    margin: 0;
+    color: var(--secondary, #5f6b76);
+}
+
+.report-indicadores-table-content {
+    padding: 0 1.25rem 1.25rem;
+    overflow-x: auto;
+}
+
+.report-indicadores-table-content[hidden] {
+    display: none;
+}
+
+@media (max-width: 575.98px) {
+    .report-indicadores-dashboard {
+        padding: 1rem;
+    }
+
+    .report-indicadores-tab {
+        width: 100%;
+        text-align: left;
+    }
+
+    .report-indicadores-table-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .report-indicadores-type-filter {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .report-indicadores-type-select {
+        width: 100%;
+    }
+}
+
 .report-indicadores-activities td,
 .report-indicadores-students td {
     vertical-align: middle;
 }
-
