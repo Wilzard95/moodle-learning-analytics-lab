@@ -66,6 +66,7 @@ final class analytics {
                 'students' => [],
                 'activities' => $activities,
                 'coursegrades' => $this->empty_grade_summary(),
+                'currentperformance' => $this->empty_current_performance(),
                 'daily' => [],
                 'totalinteractions' => 0,
                 'studentdetails' => [],
@@ -102,6 +103,7 @@ final class analytics {
             'students' => $students,
             'activities' => $activities,
             'coursegrades' => $this->get_course_grades($studentids),
+            'currentperformance' => $this->get_current_performance($grades, $studentids),
             'daily' => $interactions['daily'],
             'totalinteractions' => $interactions['total'],
             'studentdetails' => $this->get_student_details(
@@ -332,10 +334,89 @@ final class analytics {
             $summary['graded']++;
             $summary['users'][$userid] = [
                 'grade' => $grade,
+                'institutionalgrade' => $this->normalise_grade($item, $grade),
                 'status' => $status,
             ];
         }
         return $summary;
+    }
+
+    /**
+     * Calculates provisional performance using only activity grades already recorded.
+     *
+     * @param array $grades Activity grade summaries keyed by course-module id.
+     * @param array $studentids Enrolled student ids.
+     * @return array
+     */
+    private function get_current_performance(array $grades, array $studentids): array {
+        $summary = $this->empty_current_performance();
+        $summary['totalactivities'] = count($grades);
+        $summary['gradedactivities'] = count(array_filter(
+            $grades,
+            static fn(array $activitygrades): bool => $activitygrades['graded'] > 0
+        ));
+        $summary['coverage'] = $this->percentage($summary['gradedactivities'], $summary['totalactivities']);
+
+        $studentaverages = [];
+        foreach ($studentids as $userid) {
+            $availablegrades = [];
+            foreach ($grades as $activitygrades) {
+                if (isset($activitygrades['users'][$userid]['institutionalgrade'])) {
+                    $availablegrades[] = $activitygrades['users'][$userid]['institutionalgrade'];
+                }
+            }
+            if (!$availablegrades) {
+                $summary['ungraded']++;
+                continue;
+            }
+            $average = array_sum($availablegrades) / count($availablegrades);
+            $studentaverages[] = $average;
+            if ($average >= $summary['passgrade']) {
+                $summary['approved']++;
+            } else {
+                $summary['failed']++;
+            }
+            $summary['graded']++;
+        }
+        $summary['average'] = $studentaverages ? array_sum($studentaverages) / count($studentaverages) : null;
+        return $summary;
+    }
+
+    /**
+     * Converts an activity grade to the configured institutional scale.
+     *
+     * @param \stdClass $item Grade item.
+     * @param float $grade Recorded grade.
+     * @return float
+     */
+    private function normalise_grade(\stdClass $item, float $grade): float {
+        $institutionalmax = (float) get_config('report_indicadoresdocentes', 'institutionalgrademax');
+        $institutionalmax = $institutionalmax > 0 ? $institutionalmax : 5.0;
+        $range = (float) $item->grademax - (float) $item->grademin;
+        if ($range <= 0) {
+            return 0.0;
+        }
+        return (($grade - (float) $item->grademin) / $range) * $institutionalmax;
+    }
+
+    /**
+     * Returns an empty provisional-performance summary.
+     *
+     * @return array
+     */
+    private function empty_current_performance(): array {
+        $passgrade = (float) get_config('report_indicadoresdocentes', 'defaultpassgrade');
+        return [
+            'approved' => 0,
+            'failed' => 0,
+            'ungraded' => 0,
+            'graded' => 0,
+            'average' => null,
+            'passgrade' => $passgrade > 0 ? $passgrade : 3.0,
+            'gradedactivities' => 0,
+            'totalactivities' => 0,
+            'coverage' => 0.0,
+        ];
     }
 
     /**

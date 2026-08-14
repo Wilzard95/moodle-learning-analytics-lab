@@ -12,6 +12,29 @@ const panelSelector = '[data-dashboard-panel]';
 const tableToggleSelector = '[data-table-toggle]';
 const activityTypeSelector = '[data-activity-type-select]';
 const contextTableSelector = '[data-dashboard-context]';
+const progressTotalSelector = '[data-progress-total]';
+
+/**
+ * Adds the completed + pending total to Moodle's asynchronously generated chart table.
+ *
+ * @param {HTMLElement} container Progress chart container.
+ */
+const addProgressTotal = (container) => {
+    const table = container.querySelector('.chart-output-htmltable');
+    if (!table || table.querySelector('[data-progress-total-row]')) {
+        return;
+    }
+
+    const row = document.createElement('tr');
+    row.dataset.progressTotalRow = 'true';
+    const heading = document.createElement('th');
+    heading.scope = 'row';
+    heading.textContent = container.dataset.progressTotalLabel;
+    const value = document.createElement('td');
+    value.textContent = container.dataset.progressTotal;
+    row.append(heading, value);
+    table.append(row);
+};
 
 /**
  * Activates one dashboard chart.
@@ -47,6 +70,12 @@ const activateTab = (dashboard, selectedTab) => {
  * Initialises all learning dashboards on the page.
  */
 export const init = () => {
+    document.querySelectorAll(progressTotalSelector).forEach((container) => {
+        addProgressTotal(container);
+        const observer = new MutationObserver(() => addProgressTotal(container));
+        observer.observe(container, {childList: true, subtree: true});
+    });
+
     document.querySelectorAll(dashboardSelector).forEach((dashboard) => {
         const tabs = Array.from(dashboard.querySelectorAll(tabSelector));
 

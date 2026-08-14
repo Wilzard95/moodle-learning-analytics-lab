@@ -104,6 +104,20 @@ $coursegradeseries = new \core\chart_series(get_string('students', 'report_indic
 ]);
 $coursegradeseries->set_colors(['#198754', '#dc3545', '#ffc107']);
 $coursechart->add_series($coursegradeseries);
+
+$currentperformancechart = new \core\chart_pie();
+$currentperformancechart->set_labels([
+    get_string('currentlypassing', 'report_indicadoresdocentes'),
+    get_string('currentlynotpassing', 'report_indicadoresdocentes'),
+    get_string('withoutavailablegrades', 'report_indicadoresdocentes'),
+]);
+$currentperformanceseries = new \core\chart_series(get_string('students', 'report_indicadoresdocentes'), [
+    $data['currentperformance']['approved'],
+    $data['currentperformance']['failed'],
+    $data['currentperformance']['ungraded'],
+]);
+$currentperformanceseries->set_colors(['#198754', '#dc3545', '#ffc107']);
+$currentperformancechart->add_series($currentperformanceseries);
 $resourcemodnames = ['resource', 'page', 'url', 'book', 'folder'];
 $activitycharthtml = '';
 if ($data['activities']) {
@@ -269,7 +283,7 @@ $progresschart->set_labels([
     get_string('completedstate', 'report_indicadoresdocentes'),
     get_string('pendingstate', 'report_indicadoresdocentes'),
 ]);
-$progressseries = new \core\chart_series(get_string('studentactivities', 'report_indicadoresdocentes'), [
+$progressseries = new \core\chart_series(get_string('totalcourseactivities', 'report_indicadoresdocentes'), [
     $completedtotal,
     max(0, $completiontotal - $completedtotal),
 ]);
@@ -287,16 +301,65 @@ $resourcechart->add_series(new \core\chart_series(
 ));
 $attentionapprovalhtml = report_indicadoresdocentes_attention_table($data, $courseid, $context, 'approval');
 $attentiondeliveryhtml = report_indicadoresdocentes_attention_table($data, $courseid, $context, 'deliveries');
+$currentaverage = $data['currentperformance']['average'] === null
+    ? get_string('ungraded', 'report_indicadoresdocentes')
+    : format_float($data['currentperformance']['average'], 2) . ' / ' .
+        format_float((float) get_config('report_indicadoresdocentes', 'institutionalgrademax') ?: 5.0, 1);
+$coveragevalue = $data['currentperformance']['gradedactivities'] . ' / ' .
+    $data['currentperformance']['totalactivities'] . ' (' .
+    format_float($data['currentperformance']['coverage'], 1) . '%)';
+$currentperformancestats = html_writer::div(
+    report_indicadoresdocentes_card(get_string('currentgroupaverage', 'report_indicadoresdocentes'), $currentaverage) .
+    report_indicadoresdocentes_card(get_string('evaluationcoverage', 'report_indicadoresdocentes'), $coveragevalue) .
+    report_indicadoresdocentes_card(
+        get_string('currentpasscriterion', 'report_indicadoresdocentes'),
+        format_float($data['currentperformance']['passgrade'], 1)
+    ),
+    'report-indicadores-current-stats'
+);
+$currentperformancehtml = html_writer::tag('section',
+    html_writer::tag('h4', get_string('currentperformance', 'report_indicadoresdocentes'), [
+        'class' => 'report-indicadores-combined-title',
+    ]) .
+    html_writer::tag('p', get_string('currentperformance_help', 'report_indicadoresdocentes'), [
+        'class' => 'report-indicadores-chart-description',
+    ]) .
+    $currentperformancestats .
+    html_writer::div($OUTPUT->render($currentperformancechart), 'report-indicadores-current-chart'),
+    ['class' => 'report-indicadores-current-performance']
+);
+$courseoverviewhtml = html_writer::div(
+    html_writer::tag('section',
+        html_writer::tag('h4', get_string('courseapproval', 'report_indicadoresdocentes'), [
+            'class' => 'report-indicadores-combined-title',
+        ]) .
+        html_writer::tag('p', get_string('courseapproval_help', 'report_indicadoresdocentes'), [
+            'class' => 'report-indicadores-chart-description',
+        ]) .
+        $OUTPUT->render($coursechart),
+        ['class' => 'report-indicadores-combined-chart']
+    ) .
+    html_writer::tag('section',
+        html_writer::tag('h4', get_string('courseprogress', 'report_indicadoresdocentes'), [
+            'class' => 'report-indicadores-combined-title',
+        ]) .
+        html_writer::tag('p', get_string('courseprogress_help', 'report_indicadoresdocentes'), [
+            'class' => 'report-indicadores-chart-description',
+        ]) .
+        $OUTPUT->render($progresschart),
+        [
+            'class' => 'report-indicadores-combined-chart',
+            'data-progress-total' => $completiontotal,
+            'data-progress-total-label' => get_string('totalactivities', 'report_indicadoresdocentes'),
+        ]
+    ),
+    'report-indicadores-combined-charts'
+) . $currentperformancehtml;
 $dashboardtabs = [
-    'approval' => [
-        'label' => get_string('courseapproval', 'report_indicadoresdocentes'),
-        'description' => get_string('courseapproval_help', 'report_indicadoresdocentes'),
-        'chart' => $OUTPUT->render($coursechart),
-    ],
-    'progress' => [
-        'label' => get_string('courseprogress', 'report_indicadoresdocentes'),
-        'description' => get_string('courseprogress_help', 'report_indicadoresdocentes'),
-        'chart' => $OUTPUT->render($progresschart),
+    'courseoverview' => [
+        'label' => get_string('courseoverview', 'report_indicadoresdocentes'),
+        'description' => get_string('courseoverview_help', 'report_indicadoresdocentes'),
+        'chart' => $courseoverviewhtml,
     ],
     'daily' => [
         'label' => get_string('accessbyday', 'report_indicadoresdocentes'),
@@ -342,7 +405,7 @@ echo html_writer::tag('p', get_string('visualsummary_help', 'report_indicadoresd
 ]);
 echo html_writer::start_div('report-indicadores-tabs', ['role' => 'tablist']);
 foreach ($dashboardtabs as $key => $tab) {
-    $active = $key === 'approval';
+    $active = $key === 'courseoverview';
     echo html_writer::tag('button', $tab['label'], [
         'type' => 'button',
         'class' => 'report-indicadores-tab' . ($active ? ' is-active' : ''),
@@ -356,7 +419,7 @@ foreach ($dashboardtabs as $key => $tab) {
 }
 echo html_writer::end_div();
 foreach ($dashboardtabs as $key => $tab) {
-    $active = $key === 'approval';
+    $active = $key === 'courseoverview';
     echo html_writer::start_div('report-indicadores-chart-panel' . ($active ? ' is-active' : ''), [
         'id' => 'report-indicadores-panel-' . $key,
         'role' => 'tabpanel',
@@ -440,7 +503,7 @@ if (has_capability('report/indicadoresdocentes:viewdetails', $context)) {
         get_string('studentdetail', 'report_indicadoresdocentes'),
         get_string('studenttable_help', 'report_indicadoresdocentes'),
         html_writer::table($studenttable),
-        ['approval', 'progress', 'daily', 'deliveries']
+        ['daily', 'deliveries']
     );
 }
 
@@ -580,7 +643,7 @@ function report_indicadoresdocentes_collapsible_table(
     $attributes = ['class' => 'report-indicadores-table-section'];
     if ($visibletabs) {
         $attributes['data-dashboard-context'] = implode(',', $visibletabs);
-        $attributes['hidden'] = in_array('approval', $visibletabs, true) ? null : 'hidden';
+        $attributes['hidden'] = in_array('courseoverview', $visibletabs, true) ? null : 'hidden';
     }
     return html_writer::tag('section', $header . $content, $attributes);
 }

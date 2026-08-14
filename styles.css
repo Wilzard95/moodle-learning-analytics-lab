@@ -77,6 +77,61 @@
     min-height: 22rem;
 }
 
+.report-indicadores-combined-charts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.report-indicadores-combined-chart {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid #e5e8eb;
+    border-radius: 0.75rem;
+    background: #fff;
+}
+
+.report-indicadores-combined-title {
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+}
+
+.report-indicadores-current-performance {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid #e5e8eb;
+    border-radius: 0.75rem;
+    background: #f8fafc;
+}
+
+.report-indicadores-current-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.report-indicadores-current-stats .report-indicadores-card {
+    margin: 0;
+    background: #fff;
+}
+
+.report-indicadores-current-chart {
+    max-width: 46rem;
+    margin: 0 auto;
+}
+
+@media (max-width: 767.98px) {
+    .report-indicadores-combined-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .report-indicadores-current-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
 .report-indicadores-chart-scroll {
     max-height: 36rem;
     padding-right: 0.5rem;
