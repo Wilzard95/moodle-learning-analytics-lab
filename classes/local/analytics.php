@@ -66,6 +66,7 @@ final class analytics {
                 'students' => [],
                 'activities' => $activities,
                 'coursegrades' => $this->empty_grade_summary(),
+                'currentperformance' => $this->empty_current_performance(),
                 'daily' => [],
                 'totalinteractions' => 0,
                 'studentdetails' => [],
@@ -79,12 +80,22 @@ final class analytics {
         $interactions = $this->get_interactions($activities, $studentids);
 
         foreach ($activities as $cmid => &$activity) {
+            // For modules without a dedicated submission model or configured
+            // completion rule, an activity interaction is the available evidence.
+            if (empty($participation[$cmid])
+                    && !in_array($activity['modname'], ['assign', 'forum', 'quiz'], true)
+                    && !isset($completion[$cmid])) {
+                $participation[$cmid] = $interactions['byactivityusers'][$cmid] ?? [];
+                $activity['evidencelabel'] = get_string('evidence_interaction', 'report_indicadoresdocentes');
+            }
             $activity['participation'] = $participation[$cmid] ?? [];
             $activity['participated'] = count($activity['participation']);
             $activity['participationrate'] = $this->percentage($activity['participated'], count($students));
             $activity['grades'] = $grades[$cmid] ?? $this->empty_grade_summary();
             $activity['completion'] = $completion[$cmid] ?? ['complete' => 0, 'pass' => 0, 'fail' => 0];
             $activity['interactions'] = $interactions['byactivity'][$cmid] ?? 0;
+            $activity['viewers'] = count($interactions['byactivityusers'][$cmid] ?? []);
+            $activity['viewrate'] = $this->percentage($activity['viewers'], count($students));
         }
         unset($activity);
 
@@ -92,6 +103,7 @@ final class analytics {
             'students' => $students,
             'activities' => $activities,
             'coursegrades' => $this->get_course_grades($studentids),
+            'currentperformance' => $this->get_current_performance($grades, $studentids),
             'daily' => $interactions['daily'],
             'totalinteractions' => $interactions['total'],
             'studentdetails' => $this->get_student_details(
@@ -320,9 +332,91 @@ final class analytics {
             $status = $grade >= $passgrade ? 'approved' : 'failed';
             $summary[$status]++;
             $summary['graded']++;
-            $summary['users'][$userid] = ['grade' => $grade, 'status' => $status];
+            $summary['users'][$userid] = [
+                'grade' => $grade,
+                'institutionalgrade' => $this->normalise_grade($item, $grade),
+                'status' => $status,
+            ];
         }
         return $summary;
+    }
+
+    /**
+     * Calculates provisional performance using only activity grades already recorded.
+     *
+     * @param array $grades Activity grade summaries keyed by course-module id.
+     * @param array $studentids Enrolled student ids.
+     * @return array
+     */
+    private function get_current_performance(array $grades, array $studentids): array {
+        $summary = $this->empty_current_performance();
+        $summary['totalactivities'] = count($grades);
+        $summary['gradedactivities'] = count(array_filter(
+            $grades,
+            static fn(array $activitygrades): bool => $activitygrades['graded'] > 0
+        ));
+        $summary['coverage'] = $this->percentage($summary['gradedactivities'], $summary['totalactivities']);
+
+        $studentaverages = [];
+        foreach ($studentids as $userid) {
+            $availablegrades = [];
+            foreach ($grades as $activitygrades) {
+                if (isset($activitygrades['users'][$userid]['institutionalgrade'])) {
+                    $availablegrades[] = $activitygrades['users'][$userid]['institutionalgrade'];
+                }
+            }
+            if (!$availablegrades) {
+                $summary['ungraded']++;
+                continue;
+            }
+            $average = array_sum($availablegrades) / count($availablegrades);
+            $studentaverages[] = $average;
+            if ($average >= $summary['passgrade']) {
+                $summary['approved']++;
+            } else {
+                $summary['failed']++;
+            }
+            $summary['graded']++;
+        }
+        $summary['average'] = $studentaverages ? array_sum($studentaverages) / count($studentaverages) : null;
+        return $summary;
+    }
+
+    /**
+     * Converts an activity grade to the configured institutional scale.
+     *
+     * @param \stdClass $item Grade item.
+     * @param float $grade Recorded grade.
+     * @return float
+     */
+    private function normalise_grade(\stdClass $item, float $grade): float {
+        $institutionalmax = (float) get_config('report_indicadoresdocentes', 'institutionalgrademax');
+        $institutionalmax = $institutionalmax > 0 ? $institutionalmax : 5.0;
+        $range = (float) $item->grademax - (float) $item->grademin;
+        if ($range <= 0) {
+            return 0.0;
+        }
+        return (($grade - (float) $item->grademin) / $range) * $institutionalmax;
+    }
+
+    /**
+     * Returns an empty provisional-performance summary.
+     *
+     * @return array
+     */
+    private function empty_current_performance(): array {
+        $passgrade = (float) get_config('report_indicadoresdocentes', 'defaultpassgrade');
+        return [
+            'approved' => 0,
+            'failed' => 0,
+            'ungraded' => 0,
+            'graded' => 0,
+            'average' => null,
+            'passgrade' => $passgrade > 0 ? $passgrade : 3.0,
+            'gradedactivities' => 0,
+            'totalactivities' => 0,
+            'coverage' => 0.0,
+        ];
     }
 
     /**
@@ -427,6 +521,7 @@ final class analytics {
         $records = $DB->get_recordset_sql($sql, $params);
 
         $byactivity = [];
+        $byactivityusers = [];
         $bystudent = [];
         $total = 0;
         foreach ($records as $record) {
@@ -441,6 +536,7 @@ final class analytics {
             if ((int) $record->contextlevel === \CONTEXT_MODULE && isset($activities[(int) $record->contextinstanceid])) {
                 $cmid = (int) $record->contextinstanceid;
                 $byactivity[$cmid] = ($byactivity[$cmid] ?? 0) + $count;
+                $byactivityusers[$cmid][$userid] = true;
             }
         }
 
@@ -452,7 +548,13 @@ final class analytics {
             }
             $bystudent[$userid]['activedays'] = count($days);
         }
-        return ['total' => $total, 'byactivity' => $byactivity, 'bystudent' => $bystudent, 'daily' => $daily['counts']];
+        return [
+            'total' => $total,
+            'byactivity' => $byactivity,
+            'byactivityusers' => $byactivityusers,
+            'bystudent' => $bystudent,
+            'daily' => $daily['counts'],
+        ];
     }
 
     /**
@@ -514,12 +616,32 @@ final class analytics {
         array $interactions
     ): array {
         $details = [];
+        $assignmenttotal = count(array_filter($activities,
+            static fn(array $activity): bool => $activity['modname'] === 'assign'));
         foreach ($students as $userid => $student) {
             $completed = 0;
             $approved = 0;
-            foreach ($activities as $cmid => $unused) {
+            $participated = 0;
+            $submitted = 0;
+            $gradevalues = [];
+            $pendingactivities = [];
+            $notapprovedactivities = [];
+            foreach ($activities as $cmid => $activity) {
                 $completed += isset($completion[$cmid]['users'][$userid]) ? 1 : 0;
-                $approved += (($grades[$cmid]['users'][$userid]['status'] ?? '') === 'approved') ? 1 : 0;
+                $hasevidence = isset($activity['participation'][$userid]);
+                $participated += $hasevidence ? 1 : 0;
+                $submitted += $activity['modname'] === 'assign' && $hasevidence ? 1 : 0;
+                if (!$hasevidence) {
+                    $pendingactivities[] = $activity['name'];
+                }
+                $gradestatus = $grades[$cmid]['users'][$userid]['status'] ?? '';
+                $approved += $gradestatus === 'approved' ? 1 : 0;
+                if ($gradestatus === 'failed') {
+                    $notapprovedactivities[] = $activity['name'];
+                }
+                if (isset($grades[$cmid]['users'][$userid]['grade'])) {
+                    $gradevalues[] = $grades[$cmid]['users'][$userid]['grade'];
+                }
             }
             $details[$userid] = [
                 'user' => $student,
@@ -528,8 +650,27 @@ final class analytics {
                 'last' => $interactions[$userid]['last'] ?? 0,
                 'completed' => $completed,
                 'approved' => $approved,
+                'participated' => $participated,
+                'activitytotal' => count($activities),
+                'submitted' => $submitted,
+                'assignmenttotal' => $assignmenttotal,
+                'graded' => count($gradevalues),
+                'averagegrade' => $gradevalues ? array_sum($gradevalues) / count($gradevalues) : null,
+                'pendingactivities' => $pendingactivities,
+                'notapprovedactivities' => $notapprovedactivities,
             ];
         }
+        uasort($details, static function(array $left, array $right): int {
+            $bycompleted = $left['completed'] <=> $right['completed'];
+            if ($bycompleted !== 0) {
+                return $bycompleted;
+            }
+            $byapproved = $left['approved'] <=> $right['approved'];
+            if ($byapproved !== 0) {
+                return $byapproved;
+            }
+            return strcasecmp(fullname($left['user']), fullname($right['user']));
+        });
         return $details;
     }
 
