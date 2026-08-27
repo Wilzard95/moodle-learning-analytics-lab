@@ -94,8 +94,10 @@ final class analytics {
             $activity['grades'] = $grades[$cmid] ?? $this->empty_grade_summary();
             $activity['completion'] = $completion[$cmid] ?? ['complete' => 0, 'pass' => 0, 'fail' => 0];
             $activity['interactions'] = $interactions['byactivity'][$cmid] ?? 0;
-            $activity['viewers'] = count($interactions['byactivityusers'][$cmid] ?? []);
+            $activity['interactionusers'] = $interactions['byactivityusers'][$cmid] ?? [];
+            $activity['viewers'] = count($activity['interactionusers']);
             $activity['viewrate'] = $this->percentage($activity['viewers'], count($students));
+            $activity['dailyinteractions'] = $interactions['byactivitydaily'][$cmid] ?? [];
         }
         unset($activity);
 
@@ -542,6 +544,7 @@ final class analytics {
 
         $records->close();
         $daily = $this->get_daily_interactions($where, $params);
+        $byactivitydaily = $this->get_daily_activity_interactions($where, $params, $activities);
         foreach ($daily['users'] as $userid => $days) {
             if (!isset($bystudent[$userid])) {
                 $bystudent[$userid] = ['count' => 0, 'last' => 0, 'activedays' => 0];
@@ -554,7 +557,57 @@ final class analytics {
             'byactivityusers' => $byactivityusers,
             'bystudent' => $bystudent,
             'daily' => $daily['counts'],
+            'byactivitydaily' => $byactivitydaily,
         ];
+    }
+
+    /**
+     * Counts daily interactions for every reportable activity.
+     *
+     * @param string $basewhere Common log WHERE clause.
+     * @param array $baseparams Common parameters.
+     * @param array $activities Activities keyed by course-module id.
+     * @return array Counts keyed by course-module id and day timestamp.
+     */
+    private function get_daily_activity_interactions(
+        string $basewhere,
+        array $baseparams,
+        array $activities
+    ): array {
+        global $DB;
+
+        if (!$activities) {
+            return [];
+        }
+        $laststart = usergetmidnight($this->timeto);
+        $start = max(usergetmidnight($this->timefrom), $laststart - (92 * \DAYSECS));
+        $timezone = \core_date::get_user_timezone_object();
+        $reference = new \DateTimeImmutable('@' . $this->timeto);
+        $offset = $timezone->getOffset($reference);
+        $params = $baseparams;
+        $params['timefrom'] = max($start, $this->timefrom);
+        $params['dayoffsetactivity'] = $offset;
+        $params['daysecondsactivity'] = \DAYSECS;
+        $params['modulecontext'] = \CONTEXT_MODULE;
+        $sql = "SELECT contextinstanceid,
+                       FLOOR((timecreated + :dayoffsetactivity) / :daysecondsactivity) AS daybucket,
+                       COUNT(id) AS eventcount
+                  FROM {logstore_standard_log}
+                 WHERE $basewhere
+                       AND contextlevel = :modulecontext
+              GROUP BY contextinstanceid, daybucket";
+        $records = $DB->get_recordset_sql($sql, $params);
+        $result = [];
+        foreach ($records as $record) {
+            $cmid = (int) $record->contextinstanceid;
+            if (!isset($activities[$cmid])) {
+                continue;
+            }
+            $daystart = ((int) $record->daybucket * \DAYSECS) - $offset;
+            $result[$cmid][$daystart] = (int) $record->eventcount;
+        }
+        $records->close();
+        return $result;
     }
 
     /**

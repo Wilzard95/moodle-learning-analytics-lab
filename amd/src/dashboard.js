@@ -13,6 +13,32 @@ const tableToggleSelector = '[data-table-toggle]';
 const activityTypeSelector = '[data-activity-type-select]';
 const contextTableSelector = '[data-dashboard-context]';
 const progressTotalSelector = '[data-progress-total]';
+const activitySelector = '[data-activity-selector]';
+const activityDetailSelector = '[data-activity-detail]';
+const activityModeSelector = '[data-activity-mode-select]';
+const activityModePanelSelector = '[data-activity-mode-panel]';
+
+/**
+ * Shows the detail charts belonging to the selected activity.
+ *
+ * @param {HTMLElement} selectedButton Selected activity bar.
+ */
+const activateActivity = (selectedButton) => {
+    const panel = selectedButton.closest('[data-dashboard-panel]');
+    if (!panel) {
+        return;
+    }
+    const activityId = selectedButton.dataset.activitySelector;
+    panel.querySelectorAll(activitySelector).forEach((button) => {
+        const selected = button.dataset.activitySelector === activityId;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    panel.querySelectorAll(activityDetailSelector).forEach((detail) => {
+        detail.hidden = detail.dataset.activityDetail !== activityId;
+    });
+    window.dispatchEvent(new Event('resize'));
+};
 
 /**
  * Adds the completed + pending total to Moodle's asynchronously generated chart table.
@@ -70,6 +96,30 @@ const activateTab = (dashboard, selectedTab) => {
  * Initialises all learning dashboards on the page.
  */
 export const init = () => {
+    document.querySelectorAll(activitySelector).forEach((button) => {
+        button.addEventListener('click', () => activateActivity(button));
+    });
+
+    document.querySelectorAll(activityModeSelector).forEach((select) => {
+        const panel = select.closest('[data-dashboard-panel]');
+        if (!panel) {
+            return;
+        }
+        select.addEventListener('change', () => {
+            let visiblePanel = null;
+            panel.querySelectorAll(activityModePanelSelector).forEach((modePanel) => {
+                modePanel.hidden = modePanel.dataset.activityModePanel !== select.value;
+                if (!modePanel.hidden) {
+                    visiblePanel = modePanel;
+                }
+            });
+            const selectedButton = visiblePanel?.querySelector(`${activitySelector}.is-selected`);
+            if (selectedButton) {
+                activateActivity(selectedButton);
+            }
+        });
+    });
+
     document.querySelectorAll(progressTotalSelector).forEach((container) => {
         addProgressTotal(container);
         const observer = new MutationObserver(() => addProgressTotal(container));

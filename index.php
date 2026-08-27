@@ -299,6 +299,274 @@ $resourcechart->add_series(new \core\chart_series(
     get_string('interactions', 'report_indicadoresdocentes'),
     array_column($resources, 'interactions')
 ));
+$activityexplorerhtml = '';
+if ($data['activities']) {
+    $activityitems = array_values($data['activities']);
+    $firstactivityid = (string) $activityitems[0]['cmid'];
+    $gradeditems = array_values(array_filter($activityitems,
+        static fn(array $item): bool => $item['grades']['passgrade'] !== null));
+    $firstgradedactivityid = $gradeditems ? (string) $gradeditems[0]['cmid'] : '';
+    $deliverybars = '';
+    $approvalbars = '';
+    $interactionbars = '';
+    $activitydetails = '';
+
+    foreach ($activityitems as $activity) {
+        $activityid = (string) $activity['cmid'];
+        $selected = $activityid === $firstactivityid;
+        $hasevidence = in_array($activity['modname'], ['assign', 'forum', 'quiz'], true);
+        $masterusers = $hasevidence ? $activity['participation'] : $activity['interactionusers'];
+        $mastercount = count($masterusers);
+        $masterevidence = $hasevidence
+            ? $activity['evidencelabel']
+            : get_string('evidence_interaction', 'report_indicadoresdocentes');
+        $rate = $studentcount ? round(($mastercount / $studentcount) * 100, 1) : 0;
+        $deliverybars .= html_writer::tag('button',
+            html_writer::span($activity['name'], 'report-indicadores-activity-name') .
+            html_writer::div(
+                html_writer::span('', 'report-indicadores-activity-fill', [
+                    'style' => 'width: ' . $rate . '%',
+                    'title' => $mastercount . ' ' . get_string('students', 'report_indicadoresdocentes') .
+                        ' (' . format_float($rate, 1) . '%)',
+                ]),
+                'report-indicadores-activity-track'
+            ) .
+            html_writer::span(format_float($rate, 1) . '%', 'report-indicadores-activity-rate') .
+            html_writer::span($masterevidence, 'report-indicadores-activity-evidence'),
+            [
+                'type' => 'button',
+                'class' => 'report-indicadores-activity-bar' . ($selected ? ' is-selected' : ''),
+                'data-activity-selector' => $activityid,
+                'aria-pressed' => $selected ? 'true' : 'false',
+                'aria-controls' => 'report-indicadores-activity-detail-' . $activityid,
+            ]
+        );
+
+        if ($activity['grades']['passgrade'] !== null) {
+            $approvalselected = $activityid === $firstgradedactivityid;
+            $approvedrate = $studentcount
+            ? round(($activity['grades']['approved'] / $studentcount) * 100, 1)
+            : 0;
+            $failedrate = $studentcount
+            ? round(($activity['grades']['failed'] / $studentcount) * 100, 1)
+            : 0;
+            $ungradedrate = max(0, round(100 - $approvedrate - $failedrate, 1));
+            $approvalbars .= html_writer::tag('button',
+            html_writer::span($activity['name'], 'report-indicadores-activity-name') .
+            html_writer::div(
+                html_writer::span('', 'report-indicadores-activity-fill is-approved', [
+                    'style' => 'width: ' . $approvedrate . '%',
+                    'title' => get_string('approved', 'report_indicadoresdocentes') . ': ' .
+                        $activity['grades']['approved'] . ' ' . get_string('students', 'report_indicadoresdocentes') .
+                        ' (' . format_float($approvedrate, 1) . '%)',
+                ]) .
+                html_writer::span('', 'report-indicadores-activity-fill is-ungraded', [
+                    'style' => 'width: ' . $ungradedrate . '%',
+                    'title' => get_string('ungraded', 'report_indicadoresdocentes') . ': ' .
+                        ($studentcount - $activity['grades']['graded']) . ' ' .
+                        get_string('students', 'report_indicadoresdocentes') .
+                        ' (' . format_float($ungradedrate, 1) . '%)',
+                ]) .
+                html_writer::span('', 'report-indicadores-activity-fill is-failed', [
+                    'style' => 'width: ' . $failedrate . '%',
+                    'title' => get_string('failed', 'report_indicadoresdocentes') . ': ' .
+                        $activity['grades']['failed'] . ' ' . get_string('students', 'report_indicadoresdocentes') .
+                        ' (' . format_float($failedrate, 1) . '%)',
+                ]),
+                'report-indicadores-activity-track is-stacked'
+            ) .
+            html_writer::span(format_float($approvedrate, 1) . '%', 'report-indicadores-activity-rate') .
+            html_writer::span(
+                get_string('approved', 'report_indicadoresdocentes') . ' ' . format_float($approvedrate, 1) . '% · ' .
+                get_string('failed', 'report_indicadoresdocentes') . ' ' . format_float($failedrate, 1) . '% · ' .
+                get_string('ungraded', 'report_indicadoresdocentes') . ' ' . format_float($ungradedrate, 1) . '%',
+                'report-indicadores-activity-evidence'
+            ),
+            [
+                'type' => 'button',
+                'class' => 'report-indicadores-activity-bar' . ($approvalselected ? ' is-selected' : ''),
+                'data-activity-selector' => $activityid,
+                'aria-pressed' => $approvalselected ? 'true' : 'false',
+                'aria-controls' => 'report-indicadores-activity-detail-' . $activityid,
+            ]
+            );
+        }
+
+        $interactionrate = round((float) $activity['viewrate'], 1);
+        $interactionbars .= html_writer::tag('button',
+            html_writer::span($activity['name'], 'report-indicadores-activity-name') .
+            html_writer::div(
+                html_writer::span('', 'report-indicadores-activity-fill', [
+                    'style' => 'width: ' . $interactionrate . '%',
+                    'title' => $activity['viewers'] . ' ' . get_string('students', 'report_indicadoresdocentes') .
+                        ' (' . format_float($interactionrate, 1) . '%)',
+                ]),
+                'report-indicadores-activity-track'
+            ) .
+            html_writer::span(format_float($interactionrate, 1) . '%', 'report-indicadores-activity-rate') .
+            html_writer::span(
+                format_float($activity['interactions'], 0) . ' ' .
+                    get_string('interactions', 'report_indicadoresdocentes'),
+                'report-indicadores-activity-interactions'
+            ),
+            [
+                'type' => 'button',
+                'class' => 'report-indicadores-activity-bar' . ($selected ? ' is-selected' : ''),
+                'data-activity-selector' => $activityid,
+                'aria-pressed' => $selected ? 'true' : 'false',
+                'aria-controls' => 'report-indicadores-activity-detail-' . $activityid,
+            ]
+        );
+
+        $evidencechart = new \core\chart_pie();
+        $evidencechart->set_labels([
+            get_string('withevidence', 'report_indicadoresdocentes'),
+            get_string('withoutevidence', 'report_indicadoresdocentes'),
+        ]);
+        $evidenceseries = new \core\chart_series(get_string('students', 'report_indicadoresdocentes'), [
+            $mastercount,
+            max(0, $studentcount - $mastercount),
+        ]);
+        $evidenceseries->set_colors(['#198754', '#d9dee3']);
+        $evidencechart->add_series($evidenceseries);
+
+        $viewdetailchart = new \core\chart_pie();
+        $viewdetailchart->set_labels([
+            get_string('withview', 'report_indicadoresdocentes'),
+            get_string('withoutview', 'report_indicadoresdocentes'),
+        ]);
+        $viewdetailseries = new \core\chart_series(get_string('students', 'report_indicadoresdocentes'), [
+            $activity['viewers'],
+            max(0, $studentcount - $activity['viewers']),
+        ]);
+        $viewdetailseries->set_colors(['#0f6cbf', '#d9dee3']);
+        $viewdetailchart->add_series($viewdetailseries);
+
+        $activitydailychart = new \core\chart_line();
+        $activitydays = array_keys($data['daily']);
+        $activitydailychart->set_labels(array_map(
+            static fn(int $timestamp): string => userdate($timestamp, get_string('strftimedateshort')),
+            $activitydays
+        ));
+        $activitydailyseries = new \core\chart_series(
+            get_string('interactions', 'report_indicadoresdocentes'),
+            array_map(
+                static fn(int $timestamp): int => (int) ($activity['dailyinteractions'][$timestamp] ?? 0),
+                $activitydays
+            )
+        );
+        $activitydailyseries->set_color('#875596');
+        $activitydailychart->add_series($activitydailyseries);
+
+        $detailcharts = html_writer::tag('section',
+            html_writer::tag('h5', get_string('deliveriesbyactivity', 'report_indicadoresdocentes')) .
+            html_writer::tag('p', $masterevidence, ['class' => 'report-indicadores-chart-description']) .
+            $OUTPUT->render($evidencechart),
+            ['class' => 'report-indicadores-activity-detail-chart']
+        );
+        if ($activity['grades']['passgrade'] !== null) {
+            $gradedetailchart = new \core\chart_pie();
+            $gradedetailchart->set_labels([
+                get_string('approved', 'report_indicadoresdocentes'),
+                get_string('failed', 'report_indicadoresdocentes'),
+                get_string('ungraded', 'report_indicadoresdocentes'),
+            ]);
+            $gradedetailseries = new \core\chart_series(get_string('students', 'report_indicadoresdocentes'), [
+                $activity['grades']['approved'],
+                $activity['grades']['failed'],
+                max(0, $studentcount - $activity['grades']['graded']),
+            ]);
+            $gradedetailseries->set_colors(['#198754', '#dc3545', '#ffc107']);
+            $gradedetailchart->add_series($gradedetailseries);
+            $detailcharts .= html_writer::tag('section',
+                html_writer::tag('h5', get_string('approvalbyactivity', 'report_indicadoresdocentes')) .
+                $OUTPUT->render($gradedetailchart),
+                ['class' => 'report-indicadores-activity-detail-chart']
+            );
+        }
+        $detailcharts .= html_writer::tag('section',
+            html_writer::tag('h5', get_string('viewsbyactivity', 'report_indicadoresdocentes')) .
+            $OUTPUT->render($viewdetailchart) .
+            html_writer::div(
+                html_writer::span(format_float($activity['interactions'], 0), 'report-indicadores-detail-stat-value') .
+                html_writer::span(get_string('interactions', 'report_indicadoresdocentes'), 'report-indicadores-detail-stat-label'),
+                'report-indicadores-detail-stat'
+            ),
+            ['class' => 'report-indicadores-activity-detail-chart']
+        );
+        $detailcharts .= html_writer::tag('section',
+            html_writer::tag('h5', get_string('activitydailyinteractions', 'report_indicadoresdocentes')) .
+            html_writer::tag('p', get_string('activitydailyinteractions_help', 'report_indicadoresdocentes'), [
+                'class' => 'report-indicadores-chart-description',
+            ]) .
+            $OUTPUT->render($activitydailychart),
+            ['class' => 'report-indicadores-activity-detail-chart report-indicadores-activity-daily-chart']
+        );
+
+        $pendinghtml = '';
+        if (has_capability('report/indicadoresdocentes:viewdetails', $context)) {
+            $missingstudents = array_diff_key($data['students'], $masterusers);
+            $missingtable = new html_table();
+            $missingtable->attributes['class'] = 'generaltable report-indicadores-missing-evidence';
+            $missingtable->head = [
+                get_string('student', 'report_indicadoresdocentes'),
+                get_string('evidence', 'report_indicadoresdocentes'),
+            ];
+            foreach ($missingstudents as $student) {
+                $profileurl = new moodle_url('/user/view.php', ['id' => $student->id, 'course' => $courseid]);
+                $missingtable->data[] = [html_writer::link($profileurl, fullname($student)), $masterevidence];
+            }
+            if (!$missingstudents) {
+                $missingtable->data[] = [get_string('nomissingstudents', 'report_indicadoresdocentes'), ''];
+            }
+            $pendinghtml = report_indicadoresdocentes_collapsible_table(
+                'activity-pending-' . $activityid,
+                get_string('pendingstudentdetail', 'report_indicadoresdocentes'),
+                get_string('pendingstudentdetail_help', 'report_indicadoresdocentes'),
+                html_writer::table($missingtable)
+            );
+        }
+
+        $activitydetails .= html_writer::tag('section',
+            html_writer::tag('h4', $activity['name'], ['class' => 'report-indicadores-activity-detail-title']) .
+            html_writer::div($detailcharts, 'report-indicadores-activity-detail-grid') .
+            $pendinghtml,
+            [
+                'id' => 'report-indicadores-activity-detail-' . $activityid,
+                'class' => 'report-indicadores-activity-detail',
+                'data-activity-detail' => $activityid,
+                'hidden' => $selected ? null : 'hidden',
+            ]
+        );
+    }
+
+    $modeselect = html_writer::select([
+        'deliveries' => get_string('deliveries', 'report_indicadoresdocentes'),
+        'approval' => get_string('approvalmode', 'report_indicadoresdocentes'),
+        'interaction' => get_string('interactionmode', 'report_indicadoresdocentes'),
+    ], 'activitymode', 'deliveries', false, [
+        'id' => 'report-indicadores-activity-mode',
+        'class' => 'custom-select report-indicadores-mode-select',
+        'data-activity-mode-select' => '1',
+    ]);
+    $activityexplorerhtml = html_writer::div(
+        html_writer::tag('label', get_string('metricshown', 'report_indicadoresdocentes'), [
+            'for' => 'report-indicadores-activity-mode',
+            'class' => 'font-weight-bold mb-0',
+        ]) . $modeselect,
+        'report-indicadores-mode-filter'
+    );
+    foreach (['deliveries' => $deliverybars, 'approval' => $approvalbars, 'interaction' => $interactionbars]
+            as $mode => $bars) {
+        $activityexplorerhtml .= html_writer::div($bars, 'report-indicadores-activity-list', [
+            'role' => 'group',
+            'aria-label' => get_string('activityexplorer', 'report_indicadoresdocentes'),
+            'data-activity-mode-panel' => $mode,
+            'hidden' => $mode === 'deliveries' ? null : 'hidden',
+        ]);
+    }
+    $activityexplorerhtml .= html_writer::div($activitydetails, 'report-indicadores-activity-details');
+}
 $attentionapprovalhtml = report_indicadoresdocentes_attention_table($data, $courseid, $context, 'approval');
 $attentiondeliveryhtml = report_indicadoresdocentes_attention_table($data, $courseid, $context, 'deliveries');
 $currentaverage = $data['currentperformance']['average'] === null
@@ -366,30 +634,10 @@ $dashboardtabs = [
         'description' => get_string('accessbyday_help', 'report_indicadoresdocentes'),
         'chart' => $OUTPUT->render($dailychart),
     ],
-    'activityapproval' => [
-        'label' => get_string('approvalbyactivity', 'report_indicadoresdocentes'),
-        'description' => get_string('approvalbyactivity_help', 'report_indicadoresdocentes'),
-        'chart' => $OUTPUT->render($approvalchart) . $attentionapprovalhtml,
-    ],
-    'deliveries' => [
-        'label' => get_string('deliveriesbyactivity', 'report_indicadoresdocentes'),
-        'description' => get_string('deliveriesbyactivity_help', 'report_indicadoresdocentes'),
-        'chart' => $deliveryhtml . $attentiondeliveryhtml,
-    ],
-    'views' => [
-        'label' => get_string('viewsbyactivity', 'report_indicadoresdocentes'),
-        'description' => get_string('viewsbyactivity_help', 'report_indicadoresdocentes'),
-        'chart' => $viewcharthtml,
-    ],
-    'activity' => [
-        'label' => get_string('interactionsbyactivity', 'report_indicadoresdocentes'),
-        'description' => get_string('interactionsbyactivity_help', 'report_indicadoresdocentes'),
-        'chart' => $activitycharthtml,
-    ],
-    'resources' => [
-        'label' => get_string('resourcesconsulted', 'report_indicadoresdocentes'),
-        'description' => get_string('resourcesconsulted_help', 'report_indicadoresdocentes'),
-        'chart' => $OUTPUT->render($resourcechart),
+    'activityexplorer' => [
+        'label' => get_string('activityexplorer', 'report_indicadoresdocentes'),
+        'description' => get_string('activityexplorer_help', 'report_indicadoresdocentes'),
+        'chart' => $activityexplorerhtml,
     ],
 ];
 
@@ -473,7 +721,7 @@ echo report_indicadoresdocentes_collapsible_table(
     get_string('participationandcompletion', 'report_indicadoresdocentes'),
     get_string('activitytable_help', 'report_indicadoresdocentes'),
     html_writer::table($activitytable),
-    ['activityapproval', 'deliveries', 'views', 'activity', 'resources']
+    ['activityexplorer']
 );
 
 if (has_capability('report/indicadoresdocentes:viewdetails', $context)) {
